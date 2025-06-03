@@ -2,6 +2,7 @@
 
 **KataHira** is an advanced graphical trainer for learning **Hiragana** and **Katakana**, the Japanese syllabaries. Built with Python and Tkinter, this app is designed to help users improve their kana recognition through adaptive questioning based on performance statistics.
 
+The images used are for placeholder purposes only. The rights belong to the respective image owners and must be replaced if the project is used.
 
 
 ---
