@@ -10,10 +10,10 @@ class AdvancedKanaTrainer:
     def __init__(self, root):
         self.root = root
         self.root.title("Kana Trainer Avanzato")
-        self.root.geometry("650x450")
+        self.root.geometry("750x550")  # Aumentata la dimensione per i nuovi controlli
         
         # Percorso del file statistiche
-        self.stats_file = "C:/kana_trainer_stats.json"
+        self.stats_file = "kana_trainer_stats.json"
         
         # Dizionari dei kana divisi per gruppi
         self.kana_groups = {
@@ -68,50 +68,49 @@ class AdvancedKanaTrainer:
         self.active_groups = {'hiragana_base': True, 'hiragana_dakuten': False,
                             'katakana_base': False, 'katakana_dakuten': False}
         
-        # Interfaccia utente
-        self.create_widgets()
+        # Filtri per consonanti
+        self.consonant_filters = {
+            'vocali': ['a', 'i', 'u', 'e', 'o', 'n'],
+            'k-': ['ka', 'ki', 'ku', 'ke', 'ko'],
+            's-': ['sa', 'shi', 'su', 'se', 'so'],
+            't-': ['ta', 'chi', 'tsu', 'te', 'to'],
+            'n-': ['na', 'ni', 'nu', 'ne', 'no'],
+            'h-': ['ha', 'hi', 'fu', 'he', 'ho'],
+            'm-': ['ma', 'mi', 'mu', 'me', 'mo'],
+            'y-': ['ya', 'yu', 'yo'],
+            'r-': ['ra', 'ri', 'ru', 're', 'ro'],
+            'w-': ['wa', 'wo'],
+            'g-': ['ga', 'gi', 'gu', 'ge', 'go'],
+            'z-': ['za', 'ji', 'zu', 'ze', 'zo'],
+            'd-': ['da', 'ji', 'zu', 'de', 'do'],
+            'b-': ['ba', 'bi', 'bu', 'be', 'bo'],
+            'p-': ['pa', 'pi', 'pu', 'pe', 'po']
+        }
+        self.active_consonants = {consonant: False for consonant in self.consonant_filters.keys()}
+        self.active_consonants['vocali'] = True  # Di default attivo
+        
+        # Crea il notebook (schede)
+        self.notebook = ttk.Notebook(root)
+        self.notebook.pack(fill=tk.BOTH, expand=True)
+        
+        # Crea le schede
+        self.create_training_tab()
+        self.create_settings_tab()
+        
+        # Inizia con una nuova domanda
         self.new_question()
         
         # Salva le statistiche alla chiusura
+        self.update_mode_label()
         self.root.protocol("WM_DELETE_WINDOW", self.on_close)
     
-    def load_stats(self):
-        """Carica le statistiche dal file o crea un nuovo dizionario"""
-        try:
-            if os.path.exists(self.stats_file):
-                with open(self.stats_file, 'r', encoding='utf-8') as f:
-                    stats = json.load(f)
-                    # Convertiamo le chiavi annidate in defaultdict
-                    return defaultdict(lambda: {'correct': 0, 'attempts': 0}, 
-                                    {k: defaultdict(lambda: {'correct': 0, 'attempts': 0}, v) 
-                                     for k, v in stats.items()})
-        except Exception as e:
-            messagebox.showwarning("Attenzione", f"Errore nel caricamento delle statistiche: {e}")
+    def create_training_tab(self):
+        """Crea la scheda per l'esercitazione"""
+        training_tab = ttk.Frame(self.notebook)
+        self.notebook.add(training_tab, text="Esercitazione")
         
-        return defaultdict(lambda: {'correct': 0, 'attempts': 0})
-    
-    def save_stats(self):
-        """Salva le statistiche su file"""
-        try:
-            # Creiamo la directory se non esiste
-            os.makedirs(os.path.dirname(self.stats_file), exist_ok=True)
-            
-            # Convertiamo i defaultdict in dict normali per il salvataggio JSON
-            stats_to_save = {k: dict(v) for k, v in self.stats.items()}
-            
-            with open(self.stats_file, 'w', encoding='utf-8') as f:
-                json.dump(stats_to_save, f, ensure_ascii=False, indent=2)
-        except Exception as e:
-            messagebox.showwarning("Attenzione", f"Errore nel salvataggio delle statistiche: {e}")
-    
-    def on_close(self):
-        """Salva le statistiche prima di chiudere l'applicazione"""
-        self.save_stats()
-        self.root.destroy()
-    
-    def create_widgets(self):
         # Frame principale
-        main_frame = ttk.Frame(self.root, padding="10")
+        main_frame = ttk.Frame(training_tab, padding="10")
         main_frame.pack(fill=tk.BOTH, expand=True)
         
         # Pannello superiore per i punteggi
@@ -147,9 +146,38 @@ class AdvancedKanaTrainer:
         ttk.Button(control_frame, text="Nuova Domanda", command=self.new_question).pack(side=tk.LEFT, padx=5)
         ttk.Button(control_frame, text="Mostra Risposta", command=self.show_answer).pack(side=tk.LEFT, padx=5)
         
+        # Pulsante statistiche
+        ttk.Button(main_frame, text="Statistiche", command=self.show_stats).pack(pady=5)
+    
+    def create_settings_tab(self):
+        """Crea la scheda per le impostazioni"""
+        settings_tab = ttk.Frame(self.notebook)
+        self.notebook.add(settings_tab, text="Impostazioni")
+        
+        # Frame principale con scrollbar
+        main_frame = ttk.Frame(settings_tab)
+        main_frame.pack(fill=tk.BOTH, expand=True)
+        
+        canvas = tk.Canvas(main_frame)
+        scrollbar = ttk.Scrollbar(main_frame, orient="vertical", command=canvas.yview)
+        scrollable_frame = ttk.Frame(canvas)
+        
+        scrollable_frame.bind(
+            "<Configure>",
+            lambda e: canvas.configure(
+                scrollregion=canvas.bbox("all")
+            )
+        )
+        
+        canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+        canvas.configure(yscrollcommand=scrollbar.set)
+        
+        canvas.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
+        
         # Pannello selezione gruppi
-        group_frame = ttk.LabelFrame(main_frame, text="Seleziona Gruppi", padding=10)
-        group_frame.pack(fill=tk.X, pady=10)
+        group_frame = ttk.LabelFrame(scrollable_frame, text="Seleziona Gruppi Kana", padding=10)
+        group_frame.pack(fill=tk.X, pady=10, padx=5)
         
         # Checkbox per i gruppi
         self.group_vars = {}
@@ -160,14 +188,57 @@ class AdvancedKanaTrainer:
                                 command=self.update_active_groups)
             cb.grid(row=i//2, column=i%2, sticky=tk.W, padx=5, pady=2)
         
-        # Pulsante statistiche
-        ttk.Button(main_frame, text="Statistiche", command=self.show_stats).pack(pady=5)
+        # Pannello selezione consonanti
+        consonant_frame = ttk.LabelFrame(scrollable_frame, text="Filtra per Consonanti", padding=10)
+        consonant_frame.pack(fill=tk.X, pady=10, padx=5)
+        
+        # Checkbox per le consonanti
+        self.consonant_vars = {}
+        for i, (consonant, kana_list) in enumerate(self.consonant_filters.items()):
+            self.consonant_vars[consonant] = tk.BooleanVar(value=self.active_consonants[consonant])
+            
+            # Crea un frame per ogni riga di checkbox
+            row_frame = ttk.Frame(consonant_frame)
+            row_frame.pack(fill=tk.X, padx=5, pady=2)
+            
+            # Checkbox
+            cb = ttk.Checkbutton(row_frame, text=consonant,
+                                variable=self.consonant_vars[consonant],
+                                command=self.update_active_consonants)
+            cb.pack(side=tk.LEFT)
+            
+            # Etichetta con l'elenco dei kana
+            kana_chars = " ".join([self.get_kana_char(r) for r in kana_list])
+            ttk.Label(row_frame, text=kana_chars).pack(side=tk.LEFT, padx=10)
+    
+    def get_kana_char(self, romaji):
+        """Restituisce il carattere kana corrispondente al romaji"""
+        for group in self.kana_groups.values():
+            if romaji in group:
+                return group[romaji]
+        return "?"
+    
+    def update_active_consonants(self):
+        """Aggiorna le consonanti attive in base alle selezioni dell'utente"""
+        for consonant, var in self.consonant_vars.items():
+            self.active_consonants[consonant] = var.get()
+        self.update_mode_label()
+        self.score = 0
+        self.attempts = 0
+        self.update_score()
+        self.new_question()
+
     
     def update_active_groups(self):
         """Aggiorna i gruppi attivi in base alle selezioni dell'utente"""
         for group, var in self.group_vars.items():
             self.active_groups[group] = var.get()
         self.update_mode_label()
+        self.score = 0
+        self.attempts = 0
+        self.update_score()
+        self.new_question()
+
     
     def update_mode_label(self):
         """Aggiorna l'etichetta della modalità corrente"""
@@ -177,18 +248,69 @@ class AdvancedKanaTrainer:
         if self.active_groups['katakana_base'] or self.active_groups['katakana_dakuten']:
             active_modes.append("Katakana")
         
-        if not active_modes:
-            active_modes = ["Nessun gruppo selezionato"]
+        active_consonants = [c for c, active in self.active_consonants.items() if active]
+        if active_consonants:
+            active_modes.append("Consonanti: " + ", ".join(active_consonants))
         
-        self.mode_label.config(text="Modalità: " + " + ".join(active_modes))
+        if not active_modes:
+            active_modes = ["Nessun filtro selezionato"]
+        
+        self.mode_label.config(text="Modalità: " + " | ".join(active_modes))
     
     def get_active_kana(self):
         """Restituisce il dizionario dei kana attivi in base alle selezioni"""
         active_kana = {}
+        
+        # Prima filtra per gruppi (hiragana/katakana)
         for group, is_active in self.active_groups.items():
             if is_active:
                 active_kana.update(self.kana_groups[group])
+        
+        # Poi applica il filtro per consonanti
+        if any(self.active_consonants.values()):
+            filtered_kana = {}
+            for romaji, kana in active_kana.items():
+                for consonant, kana_list in self.consonant_filters.items():
+                    if self.active_consonants[consonant] and romaji in kana_list:
+                        filtered_kana[romaji] = kana
+                        break
+            active_kana = filtered_kana
+        
         return active_kana
+    
+    def load_stats(self):
+        """Carica le statistiche dal file o crea un nuovo dizionario"""
+        try:
+            if os.path.exists(self.stats_file):
+                with open(self.stats_file, 'r', encoding='utf-8') as f:
+                    stats = json.load(f)
+                    # Convertiamo le chiavi annidate in defaultdict
+                    return defaultdict(lambda: {'correct': 0, 'attempts': 0}, 
+                                    {k: defaultdict(lambda: {'correct': 0, 'attempts': 0}, v) 
+                                     for k, v in stats.items()})
+        except Exception as e:
+            messagebox.showwarning("Attenzione", f"Errore nel caricamento delle statistiche: {e}")
+        
+        return defaultdict(lambda: {'correct': 0, 'attempts': 0})
+    
+    def save_stats(self):
+        """Salva le statistiche su file"""
+        try:
+            # Creiamo la directory se non esiste
+            os.makedirs(os.path.dirname(self.stats_file), exist_ok=True)
+            
+            # Convertiamo i defaultdict in dict normali per il salvataggio JSON
+            stats_to_save = {k: dict(v) for k, v in self.stats.items()}
+            
+            with open(self.stats_file, 'w', encoding='utf-8') as f:
+                json.dump(stats_to_save, f, ensure_ascii=False, indent=2)
+        except Exception as e:
+            messagebox.showwarning("Attenzione", f"Errore nel salvataggio delle statistiche: {e}")
+    
+    def on_close(self):
+        """Salva le statistiche prima di chiudere l'applicazione"""
+        self.save_stats()
+        self.root.destroy()
     
     def get_weighted_kana_list(self):
         """Restituisce una lista di kana pesata in base alle statistiche"""
@@ -222,7 +344,7 @@ class AdvancedKanaTrainer:
         
         weighted_kana = self.get_weighted_kana_list()
         if not weighted_kana:
-            messagebox.showwarning("Attenzione", "Nessun gruppo di kana selezionato!")
+            messagebox.showwarning("Attenzione", "Nessun kana selezionato con i filtri attuali!")
             return
         
         self.current_romaji, self.current_kana = random.choice(weighted_kana)
@@ -250,7 +372,6 @@ class AdvancedKanaTrainer:
         
         if normalized_answer == self.current_romaji:
             self.score += 1
-            #messagebox.showinfo("Corretto!", f"Esatto! {self.current_kana} si legge '{self.current_romaji}'")
             self.stats[self.current_kana]['correct'] += 1
         else:
             messagebox.showerror("Sbagliato", f"Errato! {self.current_kana} si legge '{self.current_romaji}', non '{user_answer}'")
@@ -301,14 +422,8 @@ class AdvancedKanaTrainer:
             
             # Aggiungi i kana di questo gruppo alle statistiche
             group_kana = self.kana_groups[group]
-            sorted_kana = sorted(
-                group_kana.items(),
-                key=lambda x: (
-                    self.stats[x[1]]['attempts'],
-                    - (self.stats[x[1]]['correct'] / self.stats[x[1]]['attempts']) 
-                    if self.stats[x[1]]['attempts'] > 0 else 0
-                )
-            )
+            sorted_kana = sorted(group_kana.items(), key=lambda x: x[1])
+
             
             for romaji, kana in sorted_kana:
                 stats = self.stats[kana]
